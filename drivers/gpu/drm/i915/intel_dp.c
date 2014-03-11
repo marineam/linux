@@ -28,6 +28,7 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/export.h>
+#include <linux/vga_switcheroo.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
@@ -2799,9 +2800,18 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 {
 	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
 	struct drm_device *dev = dig_port->base.base.dev;
+	struct pci_dev *pdev = dev->pdev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	char dpcd_hex_dump[sizeof(intel_dp->dpcd) * 3];
+
+	if (is_edp(intel_dp)) {
+		u8 *dpcd = vga_switcheroo_get_dpcd(pdev);
+		if (dpcd && (dpcd[DP_DPCD_REV] != 0)) {
+			memcpy(intel_dp->dpcd, dpcd, sizeof(intel_dp->dpcd));
+			return true;
+		}
+	}
 
 	if (intel_dp_aux_native_read_retry(intel_dp, 0x000, intel_dp->dpcd,
 					   sizeof(intel_dp->dpcd)) == 0)
@@ -2813,6 +2823,9 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 
 	if (intel_dp->dpcd[DP_DPCD_REV] == 0)
 		return false; /* DPCD not present */
+
+	if (is_edp(intel_dp))
+		vga_switcheroo_set_dpcd(intel_dp->dpcd);
 
 	/* Check if the panel supports PSR */
 	memset(intel_dp->psr_dpcd, 0, sizeof(intel_dp->psr_dpcd));
@@ -3567,6 +3580,7 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 	struct drm_connector *connector = &intel_connector->base;
 	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
 	struct drm_device *dev = intel_dig_port->base.base.dev;
+	struct pci_dev *pdev = dev->pdev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_display_mode *fixed_mode = NULL;
 	struct edp_power_seq power_seq = { 0 };
@@ -3599,8 +3613,13 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 	intel_dp_init_panel_power_sequencer_registers(dev, intel_dp,
 						      &power_seq);
 
-	edid = drm_get_edid(connector, &intel_dp->adapter);
+	edid = vga_switcheroo_get_edid(pdev);
+
+	if (!edid)
+		edid = drm_get_edid(connector, &intel_dp->adapter);
+
 	if (edid) {
+		vga_switcheroo_set_edid(edid);
 		if (drm_add_edid_modes(connector, edid)) {
 			drm_mode_connector_update_edid_property(connector,
 								edid);
