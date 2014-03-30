@@ -740,6 +740,65 @@ free_mem_map:
 	return status;
 }
 
+#define APPLE_SET_OS_PROTOCOL_GUID \
+	EFI_GUID(0xc5c5da95, 0x7d5c, 0x45e6, 0xb2, 0xf1, 0x3f, 0xd5, 0x2b, 0xb1, 0x00, 0x77)
+
+typedef struct {
+	u64 version;
+	void (*set_os_version) (const char *os_version);
+	void (*set_os_vendor) (const char *os_vendor);
+} apple_set_os_interface_t;
+
+static efi_status_t apple_set_os()
+{
+	apple_set_os_interface_t *set_os;
+	efi_guid_t set_os_guid = APPLE_SET_OS_PROTOCOL_GUID;
+	efi_status_t status;
+	void **handles;
+	unsigned long i, nr_handles, size = 0;
+
+	status = efi_call_phys5(sys_table->boottime->locate_handle,
+				EFI_LOCATE_BY_PROTOCOL, &set_os_guid,
+				NULL, &size, handles);
+
+	if (status == EFI_BUFFER_TOO_SMALL) {
+		status = efi_call_phys3(sys_table->boottime->allocate_pool,
+					EFI_LOADER_DATA, size, &handles);
+
+		if (status != EFI_SUCCESS)
+			return status;
+
+		status = efi_call_phys5(sys_table->boottime->locate_handle,
+					EFI_LOCATE_BY_PROTOCOL, &set_os_guid,
+					NULL, &size, handles);
+	}
+
+	if (status != EFI_SUCCESS)
+		goto free_handle;
+
+	nr_handles = size / sizeof(void *);
+	for (i = 0; i < nr_handles; i++) {
+		void *h = handles[i];
+
+		status = efi_call_phys3(sys_table->boottime->handle_protocol,
+					h, &set_os_guid, &set_os);
+
+		if (status != EFI_SUCCESS || !set_os)
+			continue;
+
+		if (set_os->version > 0) {
+			efi_call_phys1(set_os->set_os_version, "Mac OS X 10.9");
+		}
+
+		if (set_os->version >= 2) {
+			efi_call_phys1(set_os->set_os_vendor, "Apple Inc.");
+		}
+	}
+
+free_handle:
+	efi_call_phys1(sys_table->boottime->free_pool, handles);
+	return status;
+}
 
 /*
  * On success we return a pointer to a boot_params structure, and NULL
@@ -796,6 +855,8 @@ struct boot_params *efi_main(void *handle, efi_system_table_t *_table,
 		hdr->pref_address = hdr->code32_start;
 		hdr->code32_start = bzimage_addr;
 	}
+
+	apple_set_os();
 
 	status = exit_boot(boot_params, handle);
 	if (status != EFI_SUCCESS)
