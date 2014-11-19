@@ -125,7 +125,7 @@ nv84_fence_context_del(struct nouveau_channel *chan)
 	nouveau_bo_vma_del(priv->bo, &fctx->vma);
 	nouveau_fence_context_del(&fctx->base);
 	chan->fence = NULL;
-	nouveau_fence_context_free(&fctx->base);
+	kfree(fctx);
 }
 
 int

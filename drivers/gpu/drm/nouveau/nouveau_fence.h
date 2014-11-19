@@ -30,8 +30,6 @@ int  nouveau_fence_sync(struct nouveau_bo *, struct nouveau_channel *, bool excl
 
 struct nouveau_fence_chan {
 	spinlock_t lock;
-	struct kref fence_ref;
-
 	struct list_head pending;
 	struct list_head flip;
 
@@ -44,7 +42,7 @@ struct nouveau_fence_chan {
 
 	u32 sequence;
 	u32 context;
-	char name[32];
+	char name[24];
 
 	struct nvif_notify notify;
 	int notify_ref;
@@ -65,7 +63,6 @@ struct nouveau_fence_priv {
 
 void nouveau_fence_context_new(struct nouveau_channel *, struct nouveau_fence_chan *);
 void nouveau_fence_context_del(struct nouveau_fence_chan *);
-void nouveau_fence_context_free(struct nouveau_fence_chan *);
 
 int nv04_fence_create(struct nouveau_drm *);
 int nv04_fence_mthd(struct nouveau_channel *, u32, u32, u32);
