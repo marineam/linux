@@ -657,7 +657,7 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	/* Synchronize with the old framebuffer */
-	ret = nouveau_fence_sync(old_bo, chan, false);
+	ret = nouveau_fence_sync(old_bo, chan);
 	if (ret)
 		goto fail;
 
@@ -721,7 +721,7 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		goto fail_unpin;
 
 	/* synchronise rendering channel with the kernel's channel */
-	ret = nouveau_fence_sync(new_bo, chan, false);
+	ret = nouveau_fence_sync(new_bo, chan);
 	if (ret) {
 		ttm_bo_unreserve(&new_bo->bo);
 		goto fail_unpin;
@@ -779,7 +779,7 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 	/* Update the crtc struct and cleanup */
 	crtc->primary->fb = fb;
 
-	nouveau_bo_fence(old_bo, fence, false);
+	nouveau_bo_fence(old_bo, fence);
 	ttm_bo_unreserve(&old_bo->bo);
 	if (old_bo != new_bo)
 		nouveau_bo_unpin(old_bo);

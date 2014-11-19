@@ -94,7 +94,7 @@ nv10_bo_put_tile_region(struct drm_device *dev, struct nouveau_drm_tile *tile,
 
 	if (tile) {
 		spin_lock(&drm->tile.lock);
-		tile->fence = (struct nouveau_fence *)fence_get(fence);
+		tile->fence = nouveau_fence_ref((struct nouveau_fence *)fence);
 		tile->used = false;
 		spin_unlock(&drm->tile.lock);
 	}
@@ -970,7 +970,7 @@ nouveau_bo_move_m2mf(struct ttm_buffer_object *bo, int evict, bool intr,
 	}
 
 	mutex_lock_nested(&cli->mutex, SINGLE_DEPTH_NESTING);
-	ret = nouveau_fence_sync(nouveau_bo(bo), chan, true);
+	ret = nouveau_fence_sync(nouveau_bo(bo), chan);
 	if (ret == 0) {
 		ret = drm->ttm.move(chan, bo, &bo->mem, new_mem);
 		if (ret == 0) {
@@ -1458,14 +1458,11 @@ nouveau_ttm_tt_unpopulate(struct ttm_tt *ttm)
 }
 
 void
-nouveau_bo_fence(struct nouveau_bo *nvbo, struct nouveau_fence *fence, bool exclusive)
+nouveau_bo_fence(struct nouveau_bo *nvbo, struct nouveau_fence *fence)
 {
 	struct reservation_object *resv = nvbo->bo.resv;
 
-	if (exclusive)
-		reservation_object_add_excl_fence(resv, &fence->base);
-	else if (fence)
-		reservation_object_add_shared_fence(resv, &fence->base);
+	reservation_object_add_excl_fence(resv, &fence->base);
 }
 
 struct ttm_bo_driver nouveau_bo_driver = {
