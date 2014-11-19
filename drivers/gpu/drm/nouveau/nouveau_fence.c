@@ -230,10 +230,12 @@ nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
 
 	if (priv->uevent)
 		fence_init(&fence->base, &nouveau_fence_ops_uevent,
-			   &fctx->lock, fctx->context, ++fctx->sequence);
+			   &fctx->lock,
+			   priv->context_base + chan->chid, ++fctx->sequence);
 	else
 		fence_init(&fence->base, &nouveau_fence_ops_legacy,
-			   &fctx->lock, fctx->context, ++fctx->sequence);
+			   &fctx->lock,
+			   priv->context_base + chan->chid, ++fctx->sequence);
 
 	trace_fence_emit(&fence->base);
 	ret = fctx->emit(fence);
@@ -344,7 +346,7 @@ nouveau_fence_wait(struct nouveau_fence *fence, bool lazy, bool intr)
 }
 
 int
-nouveau_fence_sync(struct nouveau_bo *nvbo, struct nouveau_channel *chan, bool exclusive, bool intr)
+nouveau_fence_sync(struct nouveau_bo *nvbo, struct nouveau_channel *chan, bool exclusive)
 {
 	struct nouveau_fence_chan *fctx = chan->fence;
 	struct fence *fence;
@@ -371,7 +373,7 @@ nouveau_fence_sync(struct nouveau_bo *nvbo, struct nouveau_channel *chan, bool e
 			prev = f->channel;
 
 		if (!prev || (prev != chan && (ret = fctx->sync(f, prev, chan))))
-			ret = fence_wait(fence, intr);
+			ret = fence_wait(fence, true);
 
 		return ret;
 	}
@@ -389,8 +391,8 @@ nouveau_fence_sync(struct nouveau_bo *nvbo, struct nouveau_channel *chan, bool e
 		if (f)
 			prev = f->channel;
 
-		if (!prev || (prev != chan && (ret = fctx->sync(f, prev, chan))))
-			ret = fence_wait(fence, intr);
+		if (!prev || (ret = fctx->sync(f, prev, chan)))
+			ret = fence_wait(fence, true);
 
 		if (ret)
 			break;
